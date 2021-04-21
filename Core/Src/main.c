@@ -32,6 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define CAPTURENUM 32
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -48,6 +49,16 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
+//12 P/R , Gear reduction 1 : 64
+uint32_t capturedata[CAPTURENUM] = { 0 };	//DMA Buffer
+int32_t DiffTime[CAPTURENUM-1] = { 0 };		//diff time of capture data (microsecond)
+
+//Mean difftime
+float MeanTime =0;
+
+//for microsecond measurement
+uint64_t _micros =0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,7 +69,8 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
-
+void encoderSpeedReaderCycle();		 //Read speed of encoder
+uint64_t micros();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -100,12 +112,31 @@ int main(void)
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
 
+  //start Microsecond timer
+  HAL_TIM_Base_Start_IT(&htim11);
+
+  //start Input capture in DMA
+  HAL_TIM_Base_Start(&htim1);
+  HAL_TIM_IC_Start_DMA
+  	  	 (&htim1, TIM_CHANNEL_1, &capturedata, CAPTURENUM);
+
+  uint64_t timestamp =0;	// uint64 like _micros
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  //Task2 : Read speed of encoder
+	  encoderSpeedReaderCycle();
+
+	  //Task1 : Blink LED (0.5Hz)
+	  if(micros()-timestamp > 1000000 )	// 1M (microsecond)
+	  		{
+	  			timestamp = micros();
+	  			HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
+	  		}
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -344,6 +375,51 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+//For :
+void encoderSpeedReaderCycle() {
+
+	//get DMA Position form number of data
+	//		 CapPos = 16 - (number of empty array)
+	uint32_t CapPos =CAPTURENUM -  __HAL_DMA_GET_COUNTER(htim2.hdma[TIM_DMA_ID_CC1]);
+	//	So CapPos is position of the next array that will change. (last period)
+
+	uint32_t sum = 0 ;
+
+	//calculate diff from all buffer
+	for(register int i=0 ;i < CAPTURENUM-1;i++)
+	{
+		// Ex. 	CapPos = 8, i = 7
+		// 	Difftime = capturedata[(8+1+7)%16] - capturedata[(8+7)%16]
+		//			 =      "     [0]          -      "     [15]
+		DiffTime[i]  = capturedata[(CapPos+1+i)%CAPTURENUM]-capturedata[(CapPos+i)%CAPTURENUM];
+
+		//Timer can over flow
+		if (DiffTime[i] <0)
+		{
+			DiffTime[i]+=4294967295;
+		}
+		//Sum all 15 Diff
+		sum += DiffTime[i];
+	}
+
+	//mean all 15 Diff
+	MeanTime = sum / (float)(CAPTURENUM-1);
+}
+
+//For : What time is it?
+uint64_t micros()
+{
+	return _micros + htim5.Instance->CNT; //Tim5's Counter
+}
+
+//task1 : Interrupt when periodElapsed
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+ if(htim == &htim5)
+ {
+	 _micros += 4294967295;
+ }
+}
 /* USER CODE END 4 */
 
 /**

@@ -113,12 +113,12 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   //start Microsecond timer
-  HAL_TIM_Base_Start_IT(&htim11);
+  HAL_TIM_Base_Start_IT(&htim5);
 
   //start Input capture in DMA
-  HAL_TIM_Base_Start(&htim1);
+  HAL_TIM_Base_Start(&htim2);
   HAL_TIM_IC_Start_DMA
-  	  	 (&htim1, TIM_CHANNEL_1, &capturedata, CAPTURENUM);
+  	  	 (&htim2, TIM_CHANNEL_1, (uint32_t*) &capturedata, CAPTURENUM);
 
   uint64_t timestamp =0;	// uint64 like _micros
   /* USER CODE END 2 */

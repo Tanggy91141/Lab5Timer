@@ -56,6 +56,9 @@ int32_t DiffTime[CAPTURENUM-1] = { 0 };		//diff time of capture data (microsecon
 //Mean difftime
 float MeanTime =0;
 
+//Motor's speed in rpm
+float rpm =0;
+
 //for microsecond measurement
 uint64_t _micros =0;
 
@@ -130,8 +133,11 @@ int main(void)
 	  //Task2 : Read speed of encoder
 	  encoderSpeedReaderCycle();
 
-	  //Task1 : Blink LED (0.5Hz)
-	  if(micros()-timestamp > 1000000 )	// 1M (microsecond)
+	  //Task1 : Blink LED (5Hz)
+	  //		 5Hz = 1/T
+	  //		   T = 0.2sec
+	  //         T/2 = 0.1sec = 100000microsecond
+	  if(micros() - timestamp > 100000 )
 	  		{
 	  			timestamp = micros();
 	  			HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
@@ -140,6 +146,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
   }
   /* USER CODE END 3 */
 }
@@ -379,7 +386,7 @@ static void MX_GPIO_Init(void)
 void encoderSpeedReaderCycle() {
 
 	//get DMA Position form number of data
-	//		 CapPos = 16 - (number of empty array)
+	//		 CapPos = 32 - (number of empty array)
 	uint32_t CapPos =CAPTURENUM -  __HAL_DMA_GET_COUNTER(htim2.hdma[TIM_DMA_ID_CC1]);
 	//	So CapPos is position of the next array that will change. (last period)
 
@@ -388,9 +395,9 @@ void encoderSpeedReaderCycle() {
 	//calculate diff from all buffer
 	for(register int i=0 ;i < CAPTURENUM-1;i++)
 	{
-		// Ex. 	CapPos = 8, i = 7
-		// 	Difftime = capturedata[(8+1+7)%16] - capturedata[(8+7)%16]
-		//			 =      "     [0]          -      "     [15]
+		// Ex. 	CapPos = 16, i = 15
+		// 	Difftime = capturedata[(16+1+15)%32] - capturedata[(16+15)%32]
+		//			 =      "     [0]            -      "     [31]
 		DiffTime[i]  = capturedata[(CapPos+1+i)%CAPTURENUM]-capturedata[(CapPos+i)%CAPTURENUM];
 
 		//Timer can over flow
@@ -398,12 +405,25 @@ void encoderSpeedReaderCycle() {
 		{
 			DiffTime[i]+=4294967295;
 		}
-		//Sum all 15 Diff
+		//Sum all 31 Diff
 		sum += DiffTime[i];
 	}
 
-	//mean all 15 Diff
+	//mean all 31 Diff
 	MeanTime = sum / (float)(CAPTURENUM-1);
+
+	//What do we know?
+		  //	mean of encoder's speed in microsecond per round (Period)
+		  //	motor's gear ratio is 1:64
+		  //	encoder 12 pulse per revolute
+
+		  //We need motor's speed in rpm
+
+		  //Solution
+		  //	motor's speed in rpm = (1M*60)/(MeanTime*64*12)
+		  //						 = [60M/(64*12)]/MeanTime
+	      //                     rpm = 78125/MeanTime
+	rpm = ((float)78125)/MeanTime;
 }
 
 //For : What time is it?

@@ -424,6 +424,8 @@ void encoderSpeedReaderCycle() {
 		  //						 = [60M/(64*12)]/MeanTime
 	      //                     rpm = 78125/MeanTime
 	rpm = ((float)78125)/MeanTime;
+
+	//Quiz : 16bit -> MeanTime=65535 -> 78125/65535=1.192111086 rpm
 }
 
 //For : What time is it?
